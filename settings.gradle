@@ -1,0 +1,59 @@
+pluginManagement {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            def agp = "7.2.1"
+            def kotlin = "1.7.0"
+            def ksp = "$kotlin-1.0.6"
+            def coroutine = "1.6.3"
+            def coreKtx = "1.8.0"
+            def activity = "1.5.0"
+            def fragment = "1.5.0"
+            def appcompat = "1.4.2"
+            def coordinator = "1.2.0"
+            def recyclerview = "1.2.1"
+            def viewpager = "1.0.0"
+            def material = "1.6.1"
+            def serialization = "1.3.3"
+            def kaidl = "1.15"
+            def room = "2.4.2"
+            def multiprocess = "1.0.0"
+
+            library("build-android", "com.android.tools.build:gradle:$agp")
+            library("build-kotlin-common", "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin")
+            library("build-kotlin-serialization", "org.jetbrains.kotlin:kotlin-serialization:$kotlin")
+            library("build-ksp", "com.google.devtools.ksp:symbol-processing-gradle-plugin:$ksp")
+            library("kotlin-coroutine", "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutine")
+            library("kotlin-serialization-json", "org.jetbrains.kotlinx:kotlinx-serialization-json:$serialization")
+            library("androidx-core", "androidx.core:core-ktx:$coreKtx")
+            library("androidx-activity", "androidx.activity:activity:$activity")
+            library("androidx-fragment", "androidx.fragment:fragment:$fragment")
+            library("androidx-appcompat", "androidx.appcompat:appcompat:$appcompat")
+            library("androidx-coordinator", "androidx.coordinatorlayout:coordinatorlayout:$coordinator")
+            library("androidx-recyclerview", "androidx.recyclerview:recyclerview:$recyclerview")
+            library("androidx-viewpager", "androidx.viewpager2:viewpager2:$viewpager")
+            library("androidx-room-compiler", "androidx.room:room-compiler:$room")
+            library("androidx-room-runtime", "androidx.room:room-runtime:$room")
+            library("androidx-room-ktx", "androidx.room:room-ktx:$room")
+            library("google-material", "com.google.android.material:material:$material")
+            library("kaidl-compiler", "com.github.kr328.kaidl:kaidl:$kaidl")
+            library("kaidl-runtime", "com.github.kr328.kaidl:kaidl-runtime:$kaidl")
+            library("rikkax-multiprocess", "dev.rikka.rikkax.preference:multiprocess:$multiprocess")
+        }
+    }
+}
+
+rootProject.name = "Clash"
+
+include ':app'
+include ':core'
+include ':service'
+include ':design'
+include ':common'
