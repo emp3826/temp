@@ -62,8 +62,6 @@ class PropertiesDesign(context: Context) : Design<PropertiesDesign.Request>(cont
         binding.self = this
 
         binding.activityBarLayout.applyFrom(context)
-
-        binding.scrollRoot.bindAppBarElevation(binding.activityBarLayout)
     }
 
     fun inputName() {
@@ -115,7 +113,6 @@ class PropertiesDesign(context: Context) : Design<PropertiesDesign.Request>(cont
             }
             FetchStatus.Action.FetchProviders -> {
                 isIndeterminate = false
-                max = status.max
                 progress = status.progress
             }
             else -> {}

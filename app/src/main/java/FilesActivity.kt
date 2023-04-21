@@ -107,19 +107,7 @@ class FilesActivity : BaseActivity<FilesDesign>() {
                                         val name = design.requestFileName(uri.fileName ?: "File")
 
                                         client.importDocument(stack.last(), uri, name)
-                                    } else {
-                                        client.copyDocument(it.file!!.id, uri)
                                     }
-                                }
-                            }
-                            is FilesDesign.Request.ExportFile -> {
-                                val uri: Uri? = startActivityForResult(
-                                    ActivityResultContracts.CreateDocument(),
-                                    it.file.name
-                                )
-
-                                if (uri != null) {
-                                    client.copyDocument(uri, it.file.id)
                                 }
                             }
                         }

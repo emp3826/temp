@@ -14,8 +14,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/gun"
 	"github.com/Dreamacro/clash/transport/vmess"
-
-	"golang.org/x/net/http2"
 )
 
 type Vmess struct {
@@ -26,7 +24,6 @@ type Vmess struct {
 	// for gun mux
 	gunTLSConfig *tls.Config
 	gunConfig    *gun.Config
-	transport    *http2.Transport
 }
 
 type VmessOption struct {
@@ -43,8 +40,6 @@ type VmessOption struct {
 	SkipCertVerify bool         `proxy:"skip-cert-verify,omitempty"`
 	ServerName     string       `proxy:"servername,omitempty"`
 	HTTPOpts       HTTPOptions  `proxy:"http-opts,omitempty"`
-	HTTP2Opts      HTTP2Options `proxy:"h2-opts,omitempty"`
-	GrpcOpts       GrpcOptions  `proxy:"grpc-opts,omitempty"`
 	WSOpts         WSOptions    `proxy:"ws-opts,omitempty"`
 }
 
@@ -54,20 +49,9 @@ type HTTPOptions struct {
 	Headers map[string][]string `proxy:"headers,omitempty"`
 }
 
-type HTTP2Options struct {
-	Host []string `proxy:"host,omitempty"`
-	Path string   `proxy:"path,omitempty"`
-}
-
-type GrpcOptions struct {
-	GrpcServiceName string `proxy:"grpc-service-name,omitempty"`
-}
-
 type WSOptions struct {
 	Path                string            `proxy:"path,omitempty"`
 	Headers             map[string]string `proxy:"headers,omitempty"`
-	MaxEarlyData        int               `proxy:"max-early-data,omitempty"`
-	EarlyDataHeaderName string            `proxy:"early-data-header-name,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -80,8 +64,6 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			Host:                host,
 			Port:                port,
 			Path:                v.option.WSOpts.Path,
-			MaxEarlyData:        v.option.WSOpts.MaxEarlyData,
-			EarlyDataHeaderName: v.option.WSOpts.EarlyDataHeaderName,
 		}
 
 		if len(v.option.WSOpts.Headers) != 0 {
@@ -107,24 +89,6 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 		c, err = vmess.StreamWebsocketConn(c, wsOpts)
 	case "http":
-		// readability first, so just copy default TLS logic
-		if v.option.TLS {
-			host, _, _ := net.SplitHostPort(v.addr)
-			tlsOpts := &vmess.TLSConfig{
-				Host:           host,
-				SkipCertVerify: v.option.SkipCertVerify,
-			}
-
-			if v.option.ServerName != "" {
-				tlsOpts.Host = v.option.ServerName
-			}
-
-			c, err = vmess.StreamTLSConn(c, tlsOpts)
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		host, _, _ := net.SplitHostPort(v.addr)
 		httpOpts := &vmess.HTTPConfig{
 			Host:    host,
@@ -134,46 +98,6 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 
 		c = vmess.StreamHTTPConn(c, httpOpts)
-	case "h2":
-		host, _, _ := net.SplitHostPort(v.addr)
-		tlsOpts := vmess.TLSConfig{
-			Host:           host,
-			SkipCertVerify: v.option.SkipCertVerify,
-			NextProtos:     []string{"h2"},
-		}
-
-		if v.option.ServerName != "" {
-			tlsOpts.Host = v.option.ServerName
-		}
-
-		c, err = vmess.StreamTLSConn(c, &tlsOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		h2Opts := &vmess.H2Config{
-			Hosts: v.option.HTTP2Opts.Host,
-			Path:  v.option.HTTP2Opts.Path,
-		}
-
-		c, err = vmess.StreamH2Conn(c, h2Opts)
-	case "grpc":
-		c, err = gun.StreamGunWithConn(c, v.gunTLSConfig, v.gunConfig)
-	default:
-		// handle TLS
-		if v.option.TLS {
-			host, _, _ := net.SplitHostPort(v.addr)
-			tlsOpts := &vmess.TLSConfig{
-				Host:           host,
-				SkipCertVerify: v.option.SkipCertVerify,
-			}
-
-			if v.option.ServerName != "" {
-				tlsOpts.Host = v.option.ServerName
-			}
-
-			c, err = vmess.StreamTLSConn(c, tlsOpts)
-		}
 	}
 
 	if err != nil {
@@ -185,22 +109,6 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 // DialContext implements C.ProxyAdapter
 func (v *Vmess) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
-	// gun transport
-	if v.transport != nil {
-		c, err := gun.StreamGunWithTransport(v.transport, v.gunConfig)
-		if err != nil {
-			return nil, err
-		}
-		defer safeConnClose(c, err)
-
-		c, err = v.client.StreamConn(c, parseVmessAddr(metadata))
-		if err != nil {
-			return nil, err
-		}
-
-		return NewConn(c, v), nil
-	}
-
 	c, err := dialer.DialContext(ctx, "tcp", v.addr)
 	if err != nil {
 		return nil, err
@@ -223,24 +131,13 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (
 	}
 
 	var c net.Conn
-	// gun transport
-	if v.transport != nil {
-		c, err = gun.StreamGunWithTransport(v.transport, v.gunConfig)
-		if err != nil {
-			return nil, err
-		}
-		defer safeConnClose(c, err)
-
-		c, err = v.client.StreamConn(c, parseVmessAddr(metadata))
-	} else {
-		c, err = dialer.DialContext(ctx, "tcp", v.addr)
-		if err != nil {
-			return nil, err
-		}
-		defer safeConnClose(c, err)
-
-		c, err = v.StreamConn(c, metadata)
+	c, err = dialer.DialContext(ctx, "tcp", v.addr)
+	if err != nil {
+		return nil, err
 	}
+	defer safeConnClose(c, err)
+
+	c, err = v.StreamConn(c, metadata)
 
 	if err != nil {
 		return nil, err
@@ -263,13 +160,6 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		return nil, err
 	}
 
-	switch option.Network {
-	case "h2", "grpc":
-		if !option.TLS {
-			return nil, nil
-		}
-	}
-
 	v := &Vmess{
 		Base: &Base{
 			name:  option.Name,
@@ -279,40 +169,6 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		},
 		client: client,
 		option: &option,
-	}
-
-	switch option.Network {
-	case "h2":
-		if len(option.HTTP2Opts.Host) == 0 {
-			option.HTTP2Opts.Host = append(option.HTTP2Opts.Host, "www.example.com")
-		}
-	case "grpc":
-		dialFn := func(network, addr string) (net.Conn, error) {
-			c, err := dialer.DialContext(context.Background(), "tcp", v.addr)
-			if err != nil {
-				return nil, err
-			}
-			return c, nil
-		}
-
-		gunConfig := &gun.Config{
-			ServiceName: v.option.GrpcOpts.GrpcServiceName,
-			Host:        v.option.ServerName,
-		}
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: v.option.SkipCertVerify,
-			ServerName:         v.option.ServerName,
-		}
-
-		if v.option.ServerName == "" {
-			host, _, _ := net.SplitHostPort(v.addr)
-			tlsConfig.ServerName = host
-			gunConfig.Host = host
-		}
-
-		v.gunTLSConfig = tlsConfig
-		v.gunConfig = gunConfig
-		v.transport = gun.NewHTTP2Client(dialFn, tlsConfig)
 	}
 
 	return v, nil

@@ -29,7 +29,6 @@ type result struct {
 }
 
 type Resolver struct {
-	ipv6                  bool
 	hosts                 *trie.DomainTrie
 	main                  []dnsClient
 	fallback              []dnsClient
@@ -37,7 +36,6 @@ type Resolver struct {
 	fallbackIPFilters     []fallbackIPFilter
 	group                 singleflight.Group
 	lruCache              *cache.LruCache
-	policy                *trie.DomainTrie
 }
 
 // ResolveIP request with TypeA and TypeAAAA, priority return TypeA
@@ -127,9 +125,6 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.M
 			return r.ipExchange(ctx, m)
 		}
 
-		if matched := r.matchPolicy(m); len(matched) != 0 {
-			return r.batchExchange(ctx, matched, m)
-		}
 		return r.batchExchange(ctx, r.main, m)
 	})
 
@@ -171,24 +166,6 @@ func (r *Resolver) batchExchange(ctx context.Context, clients []dnsClient, m *D.
 	return
 }
 
-func (r *Resolver) matchPolicy(m *D.Msg) []dnsClient {
-	if r.policy == nil {
-		return nil
-	}
-
-	domain := r.msgToDomain(m)
-	if domain == "" {
-		return nil
-	}
-
-	record := r.policy.Search(domain)
-	if record == nil {
-		return nil
-	}
-
-	return record.Data.([]dnsClient)
-}
-
 func (r *Resolver) shouldOnlyQueryFallback(m *D.Msg) bool {
 	if r.fallback == nil || len(r.fallbackDomainFilters) == 0 {
 		return false
@@ -210,11 +187,6 @@ func (r *Resolver) shouldOnlyQueryFallback(m *D.Msg) bool {
 }
 
 func (r *Resolver) ipExchange(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
-	if matched := r.matchPolicy(m); len(matched) != 0 {
-		res := <-r.asyncExchange(ctx, matched, m)
-		return res.Msg, res.Error
-	}
-
 	onlyFallback := r.shouldOnlyQueryFallback(m)
 
 	if onlyFallback {
@@ -314,7 +286,6 @@ type Config struct {
 	IPv6           bool
 	FallbackFilter FallbackFilter
 	Hosts          *trie.DomainTrie
-	Policy         map[string]NameServer
 }
 
 func NewResolver(config Config) *Resolver {
@@ -324,7 +295,6 @@ func NewResolver(config Config) *Resolver {
 	}
 
 	r := &Resolver{
-		ipv6:     config.IPv6,
 		main:     transform(config.Main, defaultResolver),
 		lruCache: cache.NewLRUCache(cache.WithSize(4096), cache.WithStale(true)),
 		hosts:    config.Hosts,
@@ -332,13 +302,6 @@ func NewResolver(config Config) *Resolver {
 
 	if len(config.Fallback) != 0 {
 		r.fallback = transform(config.Fallback, defaultResolver)
-	}
-
-	if len(config.Policy) != 0 {
-		r.policy = trie.New()
-		for domain, nameserver := range config.Policy {
-			r.policy.Insert(domain, transform([]NameServer{nameserver}, defaultResolver))
-		}
 	}
 
 	fallbackIPFilters := []fallbackIPFilter{}

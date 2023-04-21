@@ -2,7 +2,6 @@ package constant
 
 import (
 	"encoding/json"
-	"errors"
 )
 
 // DNSModeMapping is a mapping for EnhancedMode enum
@@ -34,10 +33,7 @@ func (e DNSMode) MarshalYAML() (any, error) {
 func (e *DNSMode) UnmarshalJSON(data []byte) error {
 	var tp string
 	json.Unmarshal(data, &tp)
-	mode, exist := DNSModeMapping[tp]
-	if !exist {
-		return errors.New("invalid mode")
-	}
+	mode, _ := DNSModeMapping[tp]
 	*e = mode
 	return nil
 }
