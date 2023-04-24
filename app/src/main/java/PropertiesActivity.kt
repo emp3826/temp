@@ -4,8 +4,6 @@ import com.github.kr328.clash.common.util.intent
 import com.github.kr328.clash.common.util.setUUID
 import com.github.kr328.clash.common.util.uuid
 import com.github.kr328.clash.design.PropertiesDesign
-import com.github.kr328.clash.design.ui.ToastDuration
-import com.github.kr328.clash.design.util.showExceptionToast
 import com.github.kr328.clash.service.model.Profile
 import com.github.kr328.clash.util.withProfile
 import kotlinx.coroutines.coroutineScope
@@ -66,12 +64,6 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
 
     private suspend fun PropertiesDesign.verifyAndCommit() {
         when {
-            profile.name.isBlank() -> {
-                showToast(R.string.empty_name, ToastDuration.Long)
-            }
-            profile.type != Profile.Type.File && profile.source.isBlank() -> {
-                showToast(R.string.invalid_url, ToastDuration.Long)
-            }
             else -> {
                 try {
                     withProcessing { updateStatus ->
@@ -92,7 +84,6 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
 
                     finish()
                 } catch (e: Exception) {
-                    showExceptionToast(e)
                 }
             }
         }
